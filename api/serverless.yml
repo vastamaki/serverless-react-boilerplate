@@ -1,0 +1,57 @@
+service: template-service-name
+frameworkVersion: =2.10.0
+
+provider:
+  name: aws
+  profile: "${opt:profile}"
+  region: eu-west-1
+  runtime: nodejs12.x
+  stage: "${opt:stage, 'dev'}"
+  tags:
+    function: '${self:service}-api'
+    stage: '${opt:stage, "dev"}'
+  environment: ${self:custom.environment.${self:provider.stage}}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+
+functions:
+  handler:
+    handler: handler.index
+    events:
+      - http:
+          cors: true
+          method: get
+          path: /
+
+custom:
+  environment:
+    dev:
+      DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}-template
+    prod:
+      DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}-template
+
+resources:
+  Resources:
+    TemplateTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        AttributeDefinitions:
+          - AttributeName: id
+          - AttributeType: S
+        KeySchema:
+          - AttributeName: id
+          - KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
